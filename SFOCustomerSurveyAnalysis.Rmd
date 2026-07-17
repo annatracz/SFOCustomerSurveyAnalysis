@@ -1,0 +1,310 @@
+---
+title: "SFO Customer Survey Analysis"
+output: html_document
+date: "2024-11-06"
+---
+
+# Introduction
+
+This project includes a data analysis of customer survey data for San Francisco International Airport. The analysis below includes exploratory factor analysis, confirmatory factor analysis, and text analysis. The purpose of this analysis is to know if customer satisfaction can be broken down into different airport attributes, so that teams can target strengths, as well as areas of improvement. The data used in this analysis comes from a customer satisfaction survey, which asks customers about their satisfaction about certain aspects of the airport.
+
+# Part One 
+
+We will begin the analysis by reading in the data and doing exploratory data analysis to learn more about the data. We will then perform factor analysis to learn what the questions in the survey can represent.
+
+```{r}
+suppressMessages(library(tidyverse))
+suppressMessages(library(dplyr))
+suppressMessages(library(psych))
+```
+
+#### Load the data
+
+```{r}
+survey_dat <- read.table('Data/SFO_survey_withText.txt', header=TRUE)
+survey_dat <- survey_dat %>% select(Q6A:Q6N, Q18, Q19)
+```
+
+#### Split into training and test sets
+
+```{r}
+set.seed(1228)
+train_ind <- sample(x = 1:nrow(survey_dat), size = 0.7 * nrow(survey_dat))
+train_survey_dat = survey_dat[train_ind, ]
+test_survey_dat = survey_dat[-train_ind, ]
+```
+
+#### Perform EFA on the training portion
+
+```{r}
+scree(train_survey_dat)
+```
+
+The scree plot suggests 2 factors.
+
+```{r}
+fa.parallel(train_survey_dat)
+```
+
+Parallel analysis suggests 4 factors.
+
+```{r}
+# Model 1 - EFA with 2 factors
+efa_2fac <- fa(r = train_survey_dat, nfactors = 2, survey_dat, rotate = 'none')
+summary(efa_2fac)
+print(efa_2fac$loadings, cutoff = 0.001, digits = 3)
+
+# Model 2 - EFA with 4 factors
+efa_4fac <- fa(r = train_survey_dat, nfactors = 4, survey_dat, rotate = 'none')
+summary(efa_4fac)
+print(efa_4fac$loadings, cutoff = 0.001, digits = 3)
+
+# Model 3 - EFA with 4 factors and orthogonal rotation
+efa_4fac_varimax <- fa(r = train_survey_dat, nfactors = 4, survey_dat, rotate = 'varimax')
+summary(efa_4fac_varimax)
+print(efa_4fac_varimax$loadings, cutoff = 0.001, digits = 3)
+```
+
+Model 1:
+
+Q6A, Q6B, Q6C, Q6D, Q6E, Q6F, Q6G, Q6H, Q6I, Q6J, Q6K, Q6M, and Q6N load on MR1.
+
+Q6L loads on MR2.
+
+Model 2:
+
+Q6A, Q6B, Q6C, Q6D, Q6E, Q6F, Q6G, Q6I, Q6J, Q6K, Q6M, and Q6N load on MR1.
+
+Q6L loads on MR2.
+
+Q6H loads on MR3.
+
+Model 3:
+
+Q6D, Q6E, Q6F, and Q6N load on MR1.
+
+Q6I, Q6J, Q6K, Q6L, and Q6M load on MR2.
+
+Q6G and Q6H load on MR3.
+
+6QA, 6QB, and Q6C load on MR4.
+
+The third model appears to have more interpretable factors.
+From observing the item meaning and which items were loaded on a factor, it seems like MR1 represents city directions/airport information, MR2 represents travel inside of the airport, MR3 represents information booths in the airport, and MR4 represents things to do in San Francisco.
+
+# Part Two
+
+In the next part of the data analysis we are performing CFA on the models we just hypothesized in the first part. We will check the fit statitsics to determine the best model. 
+
+#### Perform a CFA on the models you hypothesized in Part One. Specifically, fit the CFA models to the test portion of the data. Report the fit statistics for your models and state which one is the best. If the models show poor fit, then try to improve the fit using modification indices.
+
+#### Note that if you have tried two or three models and none fit welldespite the modification indices, then just decide which one is "best" and go from there. Don't start over. Include a diagram of the selected model.
+
+```{r}
+library(lavaan)
+```
+
+
+## Model 1
+
+```{r}
+form1 <- "MR1 =~ Q6A + Q6B + Q6C + Q6D + Q6E + Q6F + Q6G + Q6H + Q6I + Q6J + Q6K + Q6M + Q6N
+          MR2 =~ Q6L"
+
+fit1 <- lavaan::cfa(form1, data =  test_survey_dat, std.lv = TRUE)
+summary(fit1, fit.measures = T, standardized = T)
+```
+
+## Model 2
+
+```{r}
+form2 <- "MR1 =~ Q6A + Q6B + Q6C + Q6D + Q6E + Q6F + Q6G + Q6I + Q6J + Q6K + Q6M + Q6N
+          MR2 =~ Q6L
+          MR3 =~ Q6H"
+
+fit2 <- lavaan::cfa(form2, data =  test_survey_dat, std.lv = TRUE)
+summary(fit2, fit.measures = T, standardized = T)
+```
+
+## Model 3
+
+```{r}
+form3 <- "MR1 =~ Q6D + Q6E + Q6F + Q6N
+          MR2 =~ Q6I + Q6J + Q6K + Q6L + Q6M
+          MR3 =~ Q6G + Q6H
+          MR4 =~ Q6A + Q6B + Q6C"
+
+fit3 <- lavaan::cfa(form3, data =  test_survey_dat, std.lv = TRUE)
+summary(fit3, fit.measures = T, standardized = T)
+```
+
+# Fit Statistics
+
+Comparative Fit Index:
+
+-   Model 1: 0.562
+
+-   Model 2: 0.561
+
+-   Model 3: 0.946
+
+Tucker-Lewis Index:
+
+-   Model 1: 0.482
+
+-   Model 2: 0.475
+
+-   Model 3: 0.931
+
+Root Mean Square Error of Approximation:
+
+-   Model 1: 0.175
+
+-   Model 2: 0.176
+
+-   Model 3: 0.064
+
+Researchers suggest that CFI values greater than 0.90 indicate good
+model fit. Model 3 is the only model that meets this criteria.
+Researchers also suggest that TLI values greater than 0.90 indicate good
+fit. Model 3 is again the only model that has this value. Models that
+have a RMSEA less than or equal to 0.05 have a good fit while values
+between 0.05 and 0.08 indicate reasonable approximate fit. Model 3 is
+the only model in the reasonable range, while the other two models show
+poor fit.
+
+Overall, after observing the values from all fit methods, Model 3 is the
+best.
+
+
+# Part Three
+
+In the third part of this analysis we are using factor scores to perform further inferences using demographic variables. This will tell us how the demographics can affect someone's response.
+
+#### Obtain the factor scores from the model selected in Part Two. Use the factor scores to perform two further inferences using the demographic variables included in the survey such as age, gender, and household income.
+
+#### For example, you may wish to collapse income into two categories (high and low) and perform a t-test on the factor scores for your first factor. Some suggestions would be to use t-tests, one-way ANOVA, two-way ANOVA, or linear regression. For each analysis, state the null and alternative hypotheses and explain the result.
+
+#### Model 3 from Part Two
+```{r}
+form <- "MR1 =~ Q6D + Q6E + Q6F + Q6N
+          MR2 =~ Q6I + Q6J + Q6K + Q6L + Q6M
+          MR3 =~ Q6G + Q6H
+          MR4 =~ Q6A + Q6B + Q6C"
+
+fit <- lavaan::cfa(form, data =  test_survey_dat, std.lv = TRUE)
+summary(fit, fit.measures = T, standardized = T)
+```
+#### Factor Scores
+
+```{r}
+predFactorScores <- data.frame(lavPredict(fit))
+test_survey_dat_naomit <- test_survey_dat %>% tidyr::drop_na(Q6A:Q6N)
+test_survey_factor_scores <- cbind(predFactorScores, test_survey_dat_naomit)
+head(test_survey_factor_scores)
+```
+
+
+#### Inference 1: Gender impacts MR1
+
+Null Hypothesis: There is no difference in MR1 factor scores across gender groups.
+
+Alternative Hypothesis: There is a difference in MR1 factor scores across gender groups.
+```{r}
+summary(aov(MR1 ~ Q18, data = test_survey_factor_scores)) # Q18: gender
+```
+The p-value of this test is 0.008 so we reject the null hypothesis.
+
+Therefore there is evidence to conclude that there is a difference in MR1 factor scores between the gender groups, on average.
+
+It appears that males and females had differing opinions on the rating of San Francisco's traveling information and aid.
+
+
+#### Inference 2: Income impacts MR2
+
+Null Hypothesis: There is no difference in MR2 factor scores between low and high income groups.
+
+Alternative Hypothesis: There is a difference in MR2 factor scores between low and high income groups. 
+```{r}
+summary(aov(MR2 ~ as.factor(Q19), data = test_survey_factor_scores))  # Q19: income
+```
+The p-value of this test is 0.006 so we reject the null hypothesis.
+
+Therefore there is evidence to conclude that there is a difference in MR2 factor scores between the income groups, on average.
+
+It appears that groups in different income brackets had differing opinions on the rating of San Francisco's availability and ease of parking, renting a car, and travel around the airport.
+
+
+# Part Four
+
+In part four we will perform sentiment analysis on the free response comments, breaking it down with demographic variables to test how sentiment differs across demographic groups.
+
+#### Describe your basic findings and then report your finding broken down according to one of the demographic variables (e.g., does sentiment vary according to age group).
+```{r}
+library(sentimentr)
+survey_dat <- read.table('Data/SFO_survey_withText.txt', header=TRUE)
+sentiment <- sentiment_by(get_sentences(survey_dat$Q7_text_All))
+survey_dat$sentiment <- sentiment$ave_sentiment
+```
+
+### Age sentiments
+```{r}
+# splitting ages into groups
+age_ranges <- c(0, 18, 60, Inf)
+categories <- c("Child", "Adult", "Senior")
+survey_dat$age_group <- cut(survey_dat$AGE, breaks = age_ranges, labels = categories, right = FALSE)
+
+# anova test for age groups
+anova_age <- aov(sentiment ~ age_group, data = survey_dat)
+summary(anova_age)
+
+# plot sentiments for age groups
+ggplot(survey_dat, aes(x = age_group, y = sentiment)) +
+  geom_boxplot() +
+  labs(title = "Sentiment Analysis by Age Group",
+       x = "Age Group",
+       y = "Sentiment Score") +
+  theme_minimal()
+```
+The p-value of the anova test is low so we reject the null hypothesis. Therefore we have evidence to believe that there are significant differences in sentiment between at least two age groups, on average. The box plots above prove this by showing the difference in the average sentiment across age groups. Children appear to have a noticeably higher average sentiment compared to adults and seniors.
+
+### Airline sentiments
+```{r}
+# anova test for airlines
+anova_airline <- aov(sentiment ~ AIRLINE, data = survey_dat)
+summary(anova_airline)
+
+# ordered list of sentiments for each airline
+sentiment_AIRLINE <- survey_dat %>%
+  group_by(AIRLINE) %>%
+  summarize(avg_sentiment = mean(sentiment), count = n())%>% 
+  arrange(avg_sentiment)
+sentiment_AIRLINE
+```
+The p-value of the anova test is high so we fail to reject the null hypothesis. Therefore we have evidence to believe that there are no significant differences in sentiment between at least two airlines, on average.  
+
+### Destination sentiments
+```{r}
+# anova test for destinations
+anova_destination <- aov(sentiment ~ DESTINATION, data = survey_dat)
+summary(anova_destination)
+
+# ordered list of sentiments for each destination
+sentiment_DESTINATION <- survey_dat %>%
+  group_by(DESTINATION) %>%
+  summarize(avg_sentiment = mean(sentiment), count = n()) %>% 
+  arrange(avg_sentiment)
+
+# lowest and highest sentiments
+lowest_sentiment_dest <- sentiment_DESTINATION[1,'DESTINATION']
+highest_sentiment_dest <- sentiment_DESTINATION[nrow(sentiment_DESTINATION),'DESTINATION']
+```
+The p-value of the anova test is low so we reject the null hypothesis. Therefore we have evidence to believe that there are significant differences in sentiment between at least two destinations, on average.
+
+The destination with the lowest sentiment is `r lowest_sentiment_dest`
+
+The destination with the highest sentiment is `r highest_sentiment_dest`
+
+# Conclusion
+
+The purpose of this data analysis was to find if customer satisfaction can be broken down into different attributes of the airport. After a combination of factor analysis and sentiment analysis, I found that difference in income caused a difference in opinion in San Francisco's parking and travel in the airport. The executives should consider the effect of parking and travel cost on travelers or different income brackets. Additionally, males and females had different opinions on the traveling information the airport provides. The executives should look into how the information could be accessed differently between the genders and see if anything should change. The sentiment analysis showed that different age groups had different attitudes in their free response comments, with children having more positive things to say. The executives should look into why children have a better experience and plan a way for adults to have a similar attitude at the airport. Finally, the free response comments also had different sentiments across destinations. The executives should look at whether the lower sentiments had anything to do with San Francisco airport, or if it is targeted at the destination.
